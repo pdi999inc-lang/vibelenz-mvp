@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeLenz - Dating Safety Detector</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #e94560, #f39c12);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle { text-align: center; color: #aaa; margin-bottom: 30px; }
+        .card {
+            background: #0f3460;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        label { display: block; margin-bottom: 10px; font-weight: 600; color: #f39c12; }
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #16213e;
+            background: #1a1a2e;
+            color: #fff;
+            font-size: 14px;
+            font-family: monospace;
+            resize: vertical;
+        }
+        textarea:focus { outline: none; border-color: #e94560; }
+        button {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #e94560, #c0392b);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+        button:disabled { background: #555; cursor: not-allowed; }
+        .results { display: none; }
+        .results.show { display: block; }
+        .risk-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .risk-SAFE { background: #27ae60; }
+        .risk-CAUTION { background: #f39c12; }
+        .risk-DANGER { background: #e74c3c; }
+        .risk-ABORT_IMMEDIATELY { background: #c0392b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .flag {
+            background: #16213e;
+            padding: 12px;
+            margin: 8px 0;
+            border-left: 4px solid #e94560;
+            border-radius: 5px;
+        }
+        .action {
+            background: #0f3460;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 3px solid #f39c12;
+        }
+        .loading { text-align: center; padding: 20px; display: none; }
+        .spinner {
+            border: 4px solid #16213e;
+            border-top: 4px solid #e94560;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ VibeLenz</h1>
+        <p class="subtitle">AI-Powered Dating Safety Detection</p>
+        
+        <div class="card">
+            <label>Paste Your Conversation:</label>
+            <textarea id="conversation" placeholder="USER: Hey! How's it going?
+PARTNER: Hi! Great to meet you
+USER: You seem nice
+PARTNER: Can you send me $100?"></textarea>
+            
+            <button id="analyzeBtn" onclick="analyzeConversation()">
+                🔍 Analyze Safety
+            </button>
+        </div>
+
+        <div id="loading" class="card loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px;">Analyzing conversation...</p>
+        </div>
+
+        <div id="results" class="card results">
+            <h2>Analysis Results</h2>
+            <div id="resultsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'REPLACE_WITH_YOUR_RENDER_API_URL';
+
+        async function analyzeConversation() {
+            const text = document.getElementById('conversation').value;
+            const btn = document.getElementById('analyzeBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            
+            if (!text.trim()) {
+                alert('Please paste a conversation first!');
+                return;
+            }
+
+            const lines = text.split('\n').filter(l => l.trim());
+            const messages = [];
+            
+            for (const line of lines) {
+                if (line.startsWith('USER:')) {
+                    messages.push({ sender: 'USER', text: line.substring(5).trim() });
+                } else if (line.startsWith('PARTNER:')) {
+                    messages.push({ sender: 'PARTNER', text: line.substring(8).trim() });
+                }
+            }
+
+            if (messages.length < 2) {
+                alert('Need at least 2 messages (format: USER: text / PARTNER: text)');
+                return;
+            }
+
+            btn.disabled = true;
+            loading.style.display = 'block';
+            results.classList.remove('show');
+
+            try {
+                const response = await fetch(`${API_URL}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages })
+                });
+
+                if (!response.ok) throw new Error('Analysis failed');
+                const data = await response.json();
+                displayResults(data);
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            const content = document.getElementById('resultsContent');
+            const emoji = {
+                'SAFE': '✅',
+                'CAUTION': '⚠️',
+                'DANGER': '🚨',
+                'ABORT_IMMEDIATELY': '🛑'
+            };
+
+            let html = `
+                <div class="risk-badge risk-${data.risk_category}">
+                    ${emoji[data.risk_category]} ${data.risk_category}
+                </div>
+                
+                <h3>Risk Score: ${data.risk_score.toFixed(2)}</h3>
+                <p><strong>Abort Recommended:</strong> ${data.abort_recommended ? 'YES' : 'No'}</p>
+                <p><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(0)}%</p>
+                
+                <h3 style="margin-top: 20px;">🚩 Flags Detected (${data.flags.length})</h3>
+            `;
+
+            if (data.flags.length > 0) {
+                data.flags.forEach(flag => {
+                    html += `
+                        <div class="flag">
+                            <strong>${flag.type}</strong> (${flag.severity})<br>
+                            <small>${flag.evidence}</small>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<p>No red flags detected.</p>';
+            }
+
+            html += '<h3 style="margin-top: 20px;">📋 Recommended Actions</h3>';
+            data.actions.forEach(action => {
+                html += `<div class="action">${action}</div>`;
+            });
+
+            content.innerHTML = html;
+            document.getElementById('results').classList.add('show');
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
